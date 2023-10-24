@@ -1,8 +1,6 @@
-from pandas import DataFrame
-from typing import Union
-import logging, os, shutil
-from utility_pack import ManageTestFiles
-
+import logging, os
+from utility_pack import ManageTestFiles, CaseCorrection
+import pandas as pd
 
 severity_level = logging.WARNING
 logger = logging.getLogger(__name__)
@@ -45,66 +43,120 @@ def check_for_marker(path:str) -> bool:
 
 #####################################
 
-def test_create_in_unmarked_directory():
+class TestCaseCorrection():
 
-    path = "test_folder/"
+    def test_list_case_correction_with_list(self):
 
-    remove_marker(path)
+        test_object = ["tEste", "abilidebob"]
+        reference_object = ["Teste", "abilidebob"]
 
-    manager = ManageTestFiles(path)
+        test = CaseCorrection(test_object)
+        corrected_object = test.correct(reference_object)
 
-    assert manager.create() == False
+        assert corrected_object == ["Teste", "abilidebob"]
 
-def test_create_in_non_directory():
+    def test_list_case_correction_with_tuple(self):
 
-    path = "test_folder"
+        test_object = ["tEste", "abilidebob"]
+        reference_object = ("TestE", "abiliDEbob")
 
-    create_marker(path)
+        test = CaseCorrection(test_object)
+        corrected_object = test.correct(reference_object)
 
-    manager = ManageTestFiles(path)
+        assert corrected_object == ["TestE", "abiliDEbob"]
 
-    assert manager.create() == False
+    def test_DataFrame_case_correction_with_tuple(self):
 
-def test_create_in_marked_directory():
+        test_object = pd.DataFrame({"tEste":[1,2,3], "abilidebob":[4,5,6]})
+        reference_object = ("TestE", "AbiliDEbob")
 
-    path = "test_folder/"
+        test = CaseCorrection(test_object)
+        corrected_object = test.correct(reference_object)
 
-    create_marker(path)
+        assert corrected_object.equals(pd.DataFrame({"TestE":[1,2,3], "AbiliDEbob":[4,5,6]}))
 
-    manager = ManageTestFiles(path)
+    def test_DataFrame_case_correction_with_list(self):
 
-    assert manager.create() == True
+        test_object = pd.DataFrame({"tEste":[1,2,3,6,2], "abilidebob":[4,5,6,6,11]})
+        reference_object = ["TestE", "nfnfuewinfw", "wedwqe"]
 
-def test_clear_unmarked_folder():
+        test = CaseCorrection(test_object)
+        corrected_object = test.correct(reference_object)
 
-    path = "test_folder/"
+        assert corrected_object.equals(pd.DataFrame({"TestE":[1,2,3,6,2], "abilidebob":[4,5,6,6,11]}))
 
-    remove_marker(path)
+    def test_DataFrame_case_correction_with_DataFrame(self):
 
-    manager = ManageTestFiles(path)
+        test_object = pd.DataFrame({"tEste":[1,2,3,6,2], "abilidebob":[4,5,6,6,11]})
+        reference_object = pd.DataFrame({"tEstando":[1,2,3,6,2],"tESTe":[1,2,3,6,2], "abiLIDebob":[4,5,6,6,11]})
 
-    assert manager.clear_folder() == False
+        test = CaseCorrection(test_object)
+        corrected_object = test.correct(reference_object)
 
-def test_clear_marked_folder():
+        assert corrected_object.equals(pd.DataFrame({"tESTe":[1,2,3,6,2], "abiLIDebob":[4,5,6,6,11]}))
 
-    path = "test_folder/"
+class TestBaseManager():
 
-    create_marker(path)
+    def test_create_in_unmarked_directory(self):
 
-    manager = ManageTestFiles(path)
+        path = "test_folder/"
 
-    assert manager.clear_folder() == True
+        remove_marker(path)
 
-def test_testmarker_remais_after_clear():
+        manager = ManageTestFiles(path)
 
-    path = "test_folder/"
+        assert manager.create() == False
 
-    create_marker(path)
+    def test_create_in_non_directory(self):
 
-    manager = ManageTestFiles(path)
-    manager.clear_folder()
+        path = "test_folder"
 
-    assert check_for_marker(path) == True
+        create_marker(path)
+
+        manager = ManageTestFiles(path)
+
+        assert manager.create() == False
+
+    def test_create_in_marked_directory(self):
+
+        path = "test_folder/"
+
+        create_marker(path)
+
+        manager = ManageTestFiles(path)
+
+        assert manager.create() == True
+
+    def test_clear_unmarked_folder(self):
+
+        path = "test_folder/"
+
+        remove_marker(path)
+
+        manager = ManageTestFiles(path)
+
+        assert manager.clear_folder() == False
+
+    def test_clear_marked_folder(self):
+
+        path = "test_folder/"
+
+        create_marker(path)
+
+        manager = ManageTestFiles(path)
+
+        assert manager.clear_folder() == True
+
+    def test_testmarker_remais_after_clear(self):
+
+        path = "test_folder/"
+
+        create_marker(path)
+
+        manager = ManageTestFiles(path)
+        manager.clear_folder()
+
+        assert check_for_marker(path) == True
 
 if __name__ == "__main__":
     pass

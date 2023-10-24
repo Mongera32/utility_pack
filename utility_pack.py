@@ -10,6 +10,9 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
 logger.setLevel(severity_level)
 
+# ----------------------------------------
+# Exceptions
+
 class FileSafetyException(Exception):
     """Raised when a risk of data loss or data exposure is detected."""
     pass
@@ -17,6 +20,9 @@ class FileSafetyException(Exception):
 class NotDirectoryException(Exception):
     """Raised when a path should ponint to a directory but points to a file instead."""
     pass
+
+# ----------------------------------------
+# Classes and functions
 
 class CaseCorrection():
 
