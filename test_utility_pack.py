@@ -1,12 +1,13 @@
 import logging, os
-from utility_pack import ManageTestFiles, CaseCorrection
-import pandas as pd
 
-severity_level = logging.WARNING
+severity_level = logging.DEBUG
 logger = logging.getLogger(__name__)
 FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
 logger.setLevel(severity_level)
+
+from main import ManageTestFiles, CaseCorrection
+import pandas as pd
 
 def adjust_to_directory(path:str):
     if not path.endswith("/"):

@@ -32,7 +32,6 @@ class CaseCorrection():
 
         Arguments:
             - `_object`: str, list or pd.DataFrame to be corrected
-            - `reference`: reference for correction
         """
 
         logger.debug(f'Instantiating object')
