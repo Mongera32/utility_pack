@@ -404,10 +404,7 @@ class ManageTestFiles():
         logger.debug("Safety check passed")
 
     def file_opener(self, mode:str):
-        """Calls open() function and passes the needed arguments."""
-        try: self.safety_lock()
-        except FileSafetyException: return
-
+        """Calls ``open()`` function and passes the `mode` argument."""
         return open(f"{self.path}demofile{self.file_counter}.{self.ext}", mode)
 
     def creation_block(self):
