@@ -1,4 +1,5 @@
-import logging, os
+import logging, os, sys
+import pandas as pd
 
 severity_level = logging.DEBUG
 logger = logging.getLogger(__name__)
@@ -6,8 +7,32 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
 logger.setLevel(severity_level)
 
-from main import ManageTestFiles, CaseCorrection
-import pandas as pd
+def relative_import(rootdir:str) -> None:
+    """
+    Finds directory that contains root directory `rootdir` and adds it to ``PYTHONPATH``.
+    """
+
+    current_path = os.path.dirname(os.path.abspath(__file__))
+
+    current_path_list = current_path.split("/")
+
+    rootdir_index = current_path_list.index(rootdir)
+
+    rootdir_path_list = [x for x in current_path_list if current_path_list.index(x) < rootdir_index]
+
+    rootdir_path = "/".join(rootdir_path_list)
+
+
+    logger.debug(f"cwd\t{current_path}")
+    logger.debug(f"path string into list\t{current_path_list}")
+    logger.debug(f"rootdir index in list\t{rootdir_index}")
+    logger.debug(f"rootdir path list\t{rootdir_index}")
+    logger.debug(f"rootdir path\t{rootdir_path}")
+
+    sys.path.append(rootdir_path)
+    logger.debug(f"{rootdir_path} is in sys.path = {rootdir_path in sys.path}")
+relative_import("utility_pack")
+from utility_pack.main import CaseCorrection, ManageTestFiles
 
 def adjust_to_directory(path:str):
     if not path.endswith("/"):
@@ -43,8 +68,6 @@ def check_for_marker(path:str) -> bool:
         return True
     except FileNotFoundError:
         return False
-
-#####################################
 
 class TestCaseCorrection():
 
