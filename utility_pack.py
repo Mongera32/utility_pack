@@ -22,7 +22,7 @@ class NotDirectoryException(Exception):
     pass
 
 # ----------------------------------------
-# Classes and functions
+# Classes
 
 class CaseCorrection():
 
@@ -602,6 +602,9 @@ class ManageTestCsvFiles(ManageTestFiles):
         header = header[:-1]
 
         self.header = header
+
+# ----------------------------------------
+# Functions
 
 def obj_report(_obj):
     """logs a report with information from _obj parameter"""
