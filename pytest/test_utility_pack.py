@@ -8,10 +8,14 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
 logger.setLevel(severity_level)
 
-def create_marker(path:str):
-
+def adjust_to_directory(path:str):
     if not path.endswith("/"):
         path += "/"
+    return path
+
+def create_marker(path:str):
+
+    path = adjust_to_directory(path)
 
     try:
         with open(f"{path}testmarker", "x") as file:
@@ -21,8 +25,7 @@ def create_marker(path:str):
 
 def remove_marker(path:str):
 
-    if not path.endswith("/"):
-        path += "/"
+    path = adjust_to_directory(path)
 
     try:
         os.remove(f"{path}testmarker")
@@ -31,8 +34,7 @@ def remove_marker(path:str):
 
 def check_for_marker(path:str) -> bool:
 
-    if not path.endswith("/"):
-        path += "/"
+    path = adjust_to_directory(path)
 
     try:
         with open(f"{path}testmarker", "r") as file:
