@@ -30,42 +30,7 @@ def append_syspath(rootdir:str) -> None:
     logger.info(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} has been added to {Fore.GREEN + 'sys' + Fore.RESET}.{Fore.CYAN + 'path' + Fore.RESET} list.")
     logger.debug(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} is in sys.path = {Fore.BLUE + str(rootdir_parent_path in sys.path) + Fore.RESET}")
 append_syspath("utility_pack")
-from utility_pack import CaseCorrection, DemoFileGenerator, FileSafetyException
-
-def adjust_to_directory(path:str):
-    if not path.endswith("/"):
-        path += "/"
-    return path
-
-def create_marker(path:str):
-
-    path = adjust_to_directory(path)
-
-    try:
-        with open(f"{path}testmarker", "x") as file:
-            file.write("")
-    except FileExistsError:
-        logger.warning(f"testmarker file already exists at {Fore.BLUE + path + Fore.RESET}.")
-
-def remove_marker(path:str):
-
-    path = adjust_to_directory(path)
-
-    try:
-        os.remove(f"{path}testmarker")
-    except FileNotFoundError:
-        pass
-
-def check_for_marker(path:str) -> bool:
-
-    path = adjust_to_directory(path)
-
-    try:
-        with open(f"{path}testmarker", "r") as file:
-            file.read()
-        return True
-    except FileNotFoundError:
-        return False
+from utility_pack import CaseCorrection, DemoFileGenerator, FileSafetyException, create_marker, remove_marker
 
 class TestCaseCorrection():
 

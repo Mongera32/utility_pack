@@ -9,50 +9,41 @@ from prettytable import PrettyTable
 # logging config  #
 ############################################################################
 
-severity_level = logging.DEBUG
+severity_level = logging.INFO
 logger = logging.getLogger(__name__)
 FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
 logger.setLevel(severity_level)
 
 ############################################################################
-# Debug support functions and classes #
+# Debug support #
 ############################################################################
 
 class VariableInspector(PrettyTable):
 
-    def __init__(self, field_names=["Variable name","Variable value"], logger_severity = "debug"  , **kwargs) -> None:
+    def __init__(self, *args, field_names=["Name","Value"], **kwargs) -> None:
+        """
+        Returns a VariableInspector instance. Use the `.fill_report()` method to insert variables that should be
+        featured in the report.
+        """
 
         super().__init__(field_names, **kwargs)
-
-        if logger_severity.lower() not in ['debug', 'info', 'warning', 'error', 'critical']:
-            raise ValueError(f"{logger_severity} is nor a valid {Fore.GREEN + 'logging' + Fore.RESET} severity level.")
-
-        self.logger_severity = logger_severity.lower()
-
-    def var_report(self, *args):
 
         for row in args:
             self.add_row(row)
 
-        self.report()
-
     def report(self):
+        """Prints a report about current stack including las function called and local variables in a table."""
+
+        if self._rows == []: raise ValueError(f"No variables have been passed to {Fore.GREEN + 'VariableInspector' + Fore.RESET}. Use {Fore.YELLOW + 'fill_report()' + Fore.RESET} method before calling {Fore.YELLOW + 'report()' + Fore.RESET}.")
+
         function_name = inspect.stack()[1][3]
         variable_table = self.get_string()
         report_string = f"\nReporting variables from {Fore.YELLOW + function_name + Fore.RESET}\n\n{variable_table}"
 
-
-        if self.logger_severity == "debug":
-            logger.debug(report_string)
-        if self.logger_severity == "info":
-            logger.info(report_string)
-        if self.logger_severity == "warning":
-            logger.warning(report_string)
-        if self.logger_severity == "error":
-            logger.error(report_string)
-        if self.logger_severity == "critical":
-            logger.critical(report_string)
+        logger.setLevel(logging.DEBUG)
+        logger.debug(report_string)
+        logger.setLevel(severity_level)
 
 def append_syspath(rootdir:str) -> None:
     """
@@ -70,7 +61,7 @@ def append_syspath(rootdir:str) -> None:
     rootdir_parent_path = "/".join(rootdir_path_list)
 
     inspector = VariableInspector()
-    inspector.var_report(["Current directory",current_path],
+    inspector.fill_report(["Current directory",current_path],
                          ["Path into list",current_path_list],
                          ["Index of rootdir in list",rootdir_index],
                          ["List without rootdir and subdirectories",rootdir_path_list],
@@ -426,8 +417,6 @@ class DemoFileGenerator():
 ) -> None:
 
         self.set_path(path)
-        try: self.safety_lock()
-        except FileSafetyException: return
 
         self.file_name = file_name
         self.header = header
@@ -441,7 +430,6 @@ class DemoFileGenerator():
 
     def create(self, show = False) -> None:
         """Creates a test file in the directory specified by ``self.path``. returns True if operation was successful and False otherwise."""
-        self.safety_lock()
 
         try:
             self.creation_block()
@@ -450,7 +438,6 @@ class DemoFileGenerator():
 
             # setting path to cwd
             self.set_path("")
-            self.safety_lock()
 
             # creating/overriding file
             self.creation_block()
@@ -468,13 +455,6 @@ class DemoFileGenerator():
         if show:
             self.show_test_file()
 
-    def safety_lock(self):
-        """Raises FileSafetyException if path attribute has not been defined."""
-        logger.debug("Applying safety check")
-        if not hasattr(self,"path"):
-            raise FileSafetyException(f"{Fore.BLUE}self{Fore.RED} does not contain the {Fore.BLUE}path{Fore.RED} attribute. Safety lock engaged. Returning {Fore.GREEN}FileSafetyException{Fore.RESET}.")
-        logger.debug("Safety check passed")
-
     def file_opener(self, mode:str):
         """Calls ``open()`` function and passes the `mode` argument."""
         if self.multiple_files:
@@ -488,8 +468,6 @@ class DemoFileGenerator():
 
     def creation_block(self):
         """Basic bulding block for creating or overriding the file."""
-        try: self.safety_lock()
-        except FileSafetyException: return
 
         if self.multiple_files:
             self.file_counter += 1
@@ -505,18 +483,14 @@ class DemoFileGenerator():
                 f.write(self.header)
 
     def show_test_file(self):
-        """Prints the test file on ``path``."""
-        try: self.safety_lock()
-        except FileSafetyException: return
+        """Reads and prints the test file on ``self.path``."""
 
         with self.file_opener("r") as f:
-            print(f"\nShowing new test file on path {Fore.GREEN + self.path + Fore.RESET}:\n")
+            print(f"\nReading file on path {Fore.YELLOW + self.path + Fore.RESET}:\n")
             print(f.read())
 
     def standard_line_list(self):
         """Creates a list of file lines according to standard parameters."""
-        try: self.safety_lock()
-        except FileSafetyException: return
 
         counter = 0
         line_list = []
@@ -528,8 +502,6 @@ class DemoFileGenerator():
 
     def input_lines(self):
         """Insertes strings in self.line_list into file."""
-        try: self.safety_lock()
-        except FileSafetyException: return
 
         logger.debug("Inserting lines in files")
         with self.file_opener("a") as f:
@@ -543,13 +515,12 @@ class DemoFileGenerator():
 
         # making list of files in newpath
         if newpath == "":
-            logger.debug(f"{Fore.BLUE}newpath{Fore.RESET} string empty. defaulting to current working directory.")
+            logger.warning(f"{Fore.BLUE}newpath{Fore.RESET} string empty. defaulting to current working directory.")
             newpath = os.getcwd()
+
         dir_list = os.listdir(newpath)
 
-        logger.info(f"Setting test file path to {Fore.GREEN + newpath + Fore.RESET}")
         logger.debug(f"Files in {newpath}: {dir_list}")
-
         try:
             self.newpath_check(newpath)
         except FileNotFoundError:
@@ -561,50 +532,56 @@ class DemoFileGenerator():
         """Verifies if newpath is valid directory that is marked as a test area. If the Check passes, saves
         it as self.newpath and returns warningmessages otherwise."""
 
+        logger.debug(f"Setting test file path to {Fore.GREEN + newpath + Fore.RESET}")
+
         dir_list = os.listdir(newpath)
 
         if newpath[-1] != "/":
             raise NotADirectoryError(f"path {Fore.GREEN + newpath + Fore.RESET} points to a file, but should point to a directory instead.")
         if "testmarker" not in dir_list:
-            raise FileSafetyException(f"""{Fore.GREEN + newpath + Fore.RESET} directory is {Fore.RED}NOT{Fore.RESET} marked as a testing area. Cancelling operation for safety reasons.
-To mark this directory as a testing area, create a file named {Fore.BLUE}testmarker{Fore.RESET} in it.
+            raise FileSafetyException(f"""
+
+        {Fore.GREEN + newpath + Fore.RESET} directory is {Fore.RED}NOT{Fore.RESET} marked as a testing area. Cancelling operation for safety reasons.
+
+        To mark this directory as a testing area, create a file named {Fore.BLUE}testmarker{Fore.RESET} in it.
 """)
         logger.info(f"{Fore.GREEN + newpath + Fore.RESET} verified as test area. Proceeding with setup.")
+
         self.path = newpath
 
     def clear_folder(self) -> None:
-        try: self.safety_lock()
-        except FileSafetyException: return False
-        """Deletes all files in the specified directory."""
+            """Deletes all files in the specified directory."""
 
-        logger.info(f"{Fore.RED}Wiping all files in {Fore.GREEN + self.path}")
+            # Checking if directory is marked as a test area.
 
-        dir_list = os.listdir(self.path)
+            logger.info(f"{Fore.RED}Wiping all files in {self.path + Fore.RESET}")
 
-        for file_name in dir_list:
-            file_path = os.path.join(self.path, file_name)
-            try:
-                if file_name == "testmarker":
-                    continue
-                elif os.path.isfile(file_path) or os.path.islink(file_path):
-                    os.unlink(file_path)
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            except Exception as e:
-                print('Failed to delete %s. Reason: %s' % (file_path, e))
+            dir_list = os.listdir(self.path)
 
-        logger.info(f"{Fore.RED}Files wiped")
+            for file_name in dir_list:
+                file_path = os.path.join(self.path, file_name)
+                try:
+                    if file_name == "testmarker":
+                        continue
+                    elif os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                    elif os.path.isdir(file_path):
+                        shutil.rmtree(file_path)
+                except Exception as e:
+                    print('Failed to delete %s. Reason: %s' % (file_path, e))
 
-class CsvTestFileGenerator(DemoFileGenerator):
+            logger.info(f"{Fore.RED}Directory {self.path} has been wiped clean.{Fore.RESET}")
+
+class CsvDemoFileGenerator(DemoFileGenerator):
 
     def __init__(self,
                  path:str = "",
                  file_name:str = "",
                  multiple_files:bool = False,
-                 column_number = 3,
-                 line_number = 1
+                 column_number = 5,
+                 line_number = 5
     ) -> None:
-        DemoFileGenerator.__init__(   self,
+        DemoFileGenerator.__init__( self,
                                     path = path,
                                     file_name = file_name,
                                     ext = "csv",
@@ -617,8 +594,6 @@ class CsvTestFileGenerator(DemoFileGenerator):
 
     def create_csv(self, show:bool = False):
         """Create test csv file according to attributes."""
-        try: self.safety_lock()
-        except FileSafetyException: return
 
         self.csv_line_list()
 
@@ -628,8 +603,6 @@ class CsvTestFileGenerator(DemoFileGenerator):
 
     def csv_line_list(self):
         """Creates files header according to desired number of columns."""
-        try: self.safety_lock()
-        except FileSafetyException: return
 
         line_list = []
         line_counter = 0
@@ -652,8 +625,6 @@ class CsvTestFileGenerator(DemoFileGenerator):
 
     def csv_header(self):
         """Creates a header line for a ``.csv`` file"""
-        try: self.safety_lock()
-        except FileSafetyException: return
 
         header = ""
         counter = 0
@@ -664,10 +635,46 @@ class CsvTestFileGenerator(DemoFileGenerator):
         header = header[:-1]
 
         self.header = header
+        return
 
 ############################################################################
 # Functions  #
 ############################################################################
+
+def adjust_to_directory(path:str):
+    if not path.endswith("/"):
+        path += "/"
+    return path
+
+def create_marker(path:str):
+
+    path = adjust_to_directory(path)
+
+    try:
+        with open(f"{path}testmarker", "x") as file:
+            file.write("")
+    except FileExistsError:
+        logger.warning(f"testmarker file already exists at {Fore.BLUE + path + Fore.RESET}.")
+
+def remove_marker(path:str):
+
+    path = adjust_to_directory(path)
+
+    try:
+        os.remove(f"{path}testmarker")
+    except FileNotFoundError:
+        pass
+
+def check_for_marker(path:str) -> bool:
+
+    path = adjust_to_directory(path)
+
+    try:
+        with open(f"{path}testmarker", "r") as file:
+            file.read()
+        return True
+    except FileNotFoundError:
+        return False
 
 def obj_report(_obj):
     """logs a report with information from _obj parameter"""
