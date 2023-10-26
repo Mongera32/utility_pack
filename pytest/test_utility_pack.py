@@ -1,5 +1,6 @@
 import logging, os, sys
 import pandas as pd
+from colorama import Fore
 
 severity_level = logging.DEBUG
 logger = logging.getLogger(__name__)
@@ -7,32 +8,29 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
 logger.setLevel(severity_level)
 
-def relative_import(rootdir:str) -> None:
+def append_syspath(rootdir:str) -> None:
     """
-    Finds directory that contains root directory `rootdir` and adds it to ``PYTHONPATH``.
+    Finds directory that contains root directory `rootdir` and adds it to `sys.path` list.
     """
-
+    # Creating string with absolute path to current working directory.
     current_path = os.path.dirname(os.path.abspath(__file__))
-
+    # Splitting path string and creating a list with split elements.
     current_path_list = current_path.split("/")
-
+    # Finding index of rootdir in the list
     rootdir_index = current_path_list.index(rootdir)
-
+    # creating a list without rootdir and It's subdirectories.
     rootdir_path_list = [x for x in current_path_list if current_path_list.index(x) < rootdir_index]
+    # joining list elements in a new string
+    rootdir_parent_path = "/".join(rootdir_path_list)
 
-    rootdir_path = "/".join(rootdir_path_list)
+    logger.debug(f"appending {rootdir_parent_path} to {Fore.GREEN + 'sys' + Fore.RESET}.{Fore.CYAN + 'path' + Fore.RESET}")
+    logger.debug(f"{Fore.GREEN + 'sys' + Fore.RESET}.{Fore.CYAN + 'path' + Fore.RESET} list: {str(sys.path)}")
 
-
-    logger.debug(f"cwd\t{current_path}")
-    logger.debug(f"path string into list\t{current_path_list}")
-    logger.debug(f"rootdir index in list\t{rootdir_index}")
-    logger.debug(f"rootdir path list\t{rootdir_index}")
-    logger.debug(f"rootdir path\t{rootdir_path}")
-
-    sys.path.append(rootdir_path)
-    logger.debug(f"{rootdir_path} is in sys.path = {rootdir_path in sys.path}")
-relative_import("utility_pack")
-from utility_pack.main import CaseCorrection, ManageTestFiles
+    sys.path.append(rootdir_parent_path)
+    logger.info(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} has been added to {Fore.GREEN + 'sys' + Fore.RESET}.{Fore.CYAN + 'path' + Fore.RESET} list.")
+    logger.debug(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} is in sys.path = {Fore.BLUE + str(rootdir_parent_path in sys.path) + Fore.RESET}")
+append_syspath("utility_pack")
+from utility_pack import CaseCorrection, TestFileGenerator
 
 def adjust_to_directory(path:str):
     if not path.endswith("/"):
@@ -47,7 +45,7 @@ def create_marker(path:str):
         with open(f"{path}testmarker", "x") as file:
             file.write("")
     except FileExistsError:
-        pass
+        logger.warning(f"testmarker file already exists at {Fore.BLUE + path + Fore.RESET}.")
 
 def remove_marker(path:str):
 
@@ -129,7 +127,7 @@ class TestBaseManager():
 
         remove_marker(path)
 
-        manager = ManageTestFiles(path)
+        manager = TestFileGenerator(path)
 
         assert manager.create() == False
 
@@ -139,7 +137,7 @@ class TestBaseManager():
 
         create_marker(path)
 
-        manager = ManageTestFiles(path)
+        manager = TestFileGenerator(path)
 
         assert manager.create() == False
 
@@ -149,7 +147,7 @@ class TestBaseManager():
 
         create_marker(path)
 
-        manager = ManageTestFiles(path)
+        manager = TestFileGenerator(path)
 
         assert manager.create() == True
 
@@ -159,7 +157,7 @@ class TestBaseManager():
 
         remove_marker(path)
 
-        manager = ManageTestFiles(path)
+        manager = TestFileGenerator(path)
 
         assert manager.clear_folder() == False
 
@@ -169,7 +167,7 @@ class TestBaseManager():
 
         create_marker(path)
 
-        manager = ManageTestFiles(path)
+        manager = TestFileGenerator(path)
 
         assert manager.clear_folder() == True
 
@@ -179,7 +177,7 @@ class TestBaseManager():
 
         create_marker(path)
 
-        manager = ManageTestFiles(path)
+        manager = TestFileGenerator(path)
         manager.clear_folder()
 
         assert check_for_marker(path) == True

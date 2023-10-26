@@ -1,8 +1,13 @@
 from pandas import DataFrame
 from typing import Union
-import logging, os, shutil
+import logging, os, shutil, inspect, sys
 from colorama import Fore
 import random
+from prettytable import PrettyTable
+
+############################################################################
+# logging config  #
+############################################################################
 
 severity_level = logging.DEBUG
 logger = logging.getLogger(__name__)
@@ -10,8 +15,60 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
 logger.setLevel(severity_level)
 
-# ----------------------------------------
-# Exceptions
+############################################################################
+# Debug support functions and classes #
+############################################################################
+
+class VariableInspector(PrettyTable):
+
+    def __init__(self, field_names=["Variable name","Variable value"], **kwargs) -> None:
+
+        if severity_level != logging.DEBUG: return
+
+        super().__init__(field_names, **kwargs)
+
+    def var_report(self, *args):
+
+        for row in args:
+            self.add_row(row)
+
+        self.report()
+
+    def report(self):
+        function_name = inspect.stack()[1][3]
+        variable_table = self.get_string()
+        print(f"\nReporting variables from {Fore.YELLOW + function_name + Fore.RESET}\n\n{variable_table}")
+
+def append_syspath(rootdir:str) -> None:
+    """
+    Finds directory that contains root directory `rootdir` and adds it to `sys.path` list.
+    """
+    # Creating string with absolute path to current working directory.
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    # Splitting path string and creating a list with split elements.
+    current_path_list = current_path.split("/")
+    # Finding index of rootdir in the list
+    rootdir_index = current_path_list.index(rootdir)
+    # creating a list without rootdir and It's subdirectories.
+    rootdir_path_list = [x for x in current_path_list if current_path_list.index(x) < rootdir_index]
+    # joining list elements in a new string
+    rootdir_parent_path = "/".join(rootdir_path_list)
+
+    inspector = VariableInspector()
+    inspector.var_report(["Current directory",current_path],
+                         ["Path into list",current_path_list],
+                         ["Index of rootdir in list",rootdir_index],
+                         ["List without rootdir and subdirectories",rootdir_path_list],
+                         ["Path string created from updated list",rootdir_parent_path]
+)
+
+    sys.path.append(rootdir_parent_path)
+    logger.info(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} has been added to {Fore.GREEN + 'sys' + Fore.RESET}.{Fore.CYAN + 'path' + Fore.RESET} list.")
+    logger.debug(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} is in sys.path = {Fore.BLUE + str(rootdir_parent_path in sys.path) + Fore.RESET}")
+
+############################################################################
+# Custom Exceptions  #
+############################################################################
 
 class FileSafetyException(Exception):
     """Raised when a risk of data loss or data exposure is detected."""
@@ -21,8 +78,9 @@ class NotDirectoryException(Exception):
     """Raised when a path should ponint to a directory but points to a file instead."""
     pass
 
-# ----------------------------------------
-# Classes
+############################################################################
+# Classes  #
+############################################################################
 
 class CaseCorrection():
 
@@ -334,12 +392,21 @@ class DataFormatting():
 
         return data_list
 
-class ManageTestFiles():
-    """Manages creation and deletion of files for test purposes. `path` argument must be a directory path and
-    not a file path. A `.csv` file named `demofile.<extension>` will be created in this directory."""
+class TestFileGenerator():
+    """
+    Manages creation and deletion of files for test purposes. `path` argument must be a directory path and must contain
+    a file named `testmarker`, otherwise the `safety_lock()` method will engage and stop any class method that gets
+    executed before it's able to change any files.
+
+    Main class methods:
+    - `create()`: Creates a `.csv` file in the directory specified by `self.path`.
+    - `show_test_file()`: Displays test file saved in `self.path`
+
+    """
 
     def __init__(self,
                  path:str = "",
+                 file_name:str = "demofile",
                  ext:str = "csv",
                  multiple_files:bool = False,
                  header = "file header\n",
@@ -351,6 +418,7 @@ class ManageTestFiles():
         try: self.safety_lock()
         except FileSafetyException: return
 
+        self.file_name = file_name
         self.header = header
         self.lines = lines
         self.ext = ext
@@ -366,7 +434,6 @@ class ManageTestFiles():
         except FileSafetyException: return False
 
         try:
-            # creating/overriding file
             self.creation_block()
         except FileNotFoundError:
             logger.warning(f"Directory {self.path} does not exist. Defaulting to current working directory.")
@@ -381,10 +448,10 @@ class ManageTestFiles():
 
         # creating line list of one doesn't exist already
         if not hasattr(self,"line_list"):
-            logger.debug(f"{Fore.BLUE}self{Fore.RESET}.{Fore.YELLOW}line_list{Fore.RESET} does not exist. Calling {Fore.BLUE}self{Fore.RESET}.{Fore.YELLOW}standard_line_list(){Fore.RESET}.")
+            logger.debug(f"{Fore.BLUE}self.line_list{Fore.RESET} does not exist. Calling {Fore.BLUE}self{Fore.RESET}.{Fore.YELLOW}standard_line_list(){Fore.RESET}.")
             self.standard_line_list()
         else:
-            logger.debug(f"{Fore.BLUE}self{Fore.RESET}.{Fore.YELLOW}line_list{Fore.RESET} exists. Skipping {Fore.BLUE}self{Fore.RESET}.{Fore.YELLOW}standard_line_list(){Fore.RESET}.")
+            logger.debug(f"{Fore.BLUE}self.line_list{Fore.RESET} exists. Skipping {Fore.BLUE}self{Fore.RESET}.{Fore.YELLOW}standard_line_list(){Fore.RESET}.")
 
         # inserting lines
         self.input_lines()
@@ -398,13 +465,20 @@ class ManageTestFiles():
         """Raises FileSafetyException if path attribute has not been defined."""
         logger.debug("Applying safety check")
         if not hasattr(self,"path"):
-            logger.error(f"self does not contain the {Fore.BLUE}path{Fore.RESET} attribute. Safety lock engaged. Returning {Fore.RED}FileSafetyException{Fore.RESET}.")
+            logger.error(f"self does not contain the {Fore.BLUE}path{Fore.RED} attribute. Safety lock engaged. Returning {Fore.GREEN}FileSafetyException{Fore.RESET}.")
             raise FileSafetyException
         logger.debug("Safety check passed")
 
     def file_opener(self, mode:str):
         """Calls ``open()`` function and passes the `mode` argument."""
-        return open(f"{self.path}demofile{self.file_counter}.{self.ext}", mode)
+        if self.multiple_files:
+            full_path = f"{self.file_name}{self.file_counter}.{self.ext}"
+        else:
+            full_path = f"{self.file_name}.{self.ext}"
+
+        logger.debug(f"self.multiple_files is {self.multiple_files}. Full file path is {full_path}.")
+        logger.debug(f"Accessing file {full_path} in {mode} mode.")
+        return open(full_path, mode)
 
     def creation_block(self):
         """Basic bulding block for creating or overriding the file."""
@@ -529,21 +603,21 @@ path {Fore.GREEN + newpath + Fore.RESET} points to a file, but should point to a
 
         return True
 
-class ManageTestCsvFiles(ManageTestFiles):
+class CsvTestFileGenerator(TestFileGenerator):
 
     def __init__(self,
                  path:str = "",
+                 file_name:str = "",
                  multiple_files:bool = False,
                  column_number = 3,
                  line_number = 1
-) -> None:
-        try: self.safety_lock()
-        except FileSafetyException: return
-
-        super().__init__(   path = path,
-                            ext = "csv",
-                            multiple_files = multiple_files,
-                            line_number = line_number
+    ) -> None:
+        TestFileGenerator.__init__(   self,
+                                    path = path,
+                                    file_name = file_name,
+                                    ext = "csv",
+                                    multiple_files = multiple_files,
+                                    line_number = line_number
 )
         self.column_number = column_number
         self.csv_header()
@@ -599,8 +673,9 @@ class ManageTestCsvFiles(ManageTestFiles):
 
         self.header = header
 
-# ----------------------------------------
-# Functions
+############################################################################
+# Functions  #
+############################################################################
 
 def obj_report(_obj):
     """logs a report with information from _obj parameter"""
@@ -685,5 +760,4 @@ def correction_labels_to_list(reference):
     return reference
 
 if __name__ == "__main__":
-    manager = ManageTestFiles("test_folder/")
-    assert manager.create()
+    pass
