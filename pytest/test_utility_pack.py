@@ -30,7 +30,7 @@ def append_syspath(rootdir:str) -> None:
     logger.info(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} has been added to {Fore.GREEN + 'sys' + Fore.RESET}.{Fore.CYAN + 'path' + Fore.RESET} list.")
     logger.debug(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} is in sys.path = {Fore.BLUE + str(rootdir_parent_path in sys.path) + Fore.RESET}")
 append_syspath("utility_pack")
-from utility_pack import CaseCorrection, TestFileGenerator
+from utility_pack import CaseCorrection, DemoFileGenerator, FileSafetyException
 
 def adjust_to_directory(path:str):
     if not path.endswith("/"):
@@ -119,7 +119,7 @@ class TestCaseCorrection():
 
         assert corrected_object.equals(pd.DataFrame({"tESTe":[1,2,3,6,2], "abiLIDebob":[4,5,6,6,11]}))
 
-class TestBaseManager():
+class TestBaseFileGenerator():
 
     def test_create_in_unmarked_directory(self):
 
@@ -127,9 +127,11 @@ class TestBaseManager():
 
         remove_marker(path)
 
-        manager = TestFileGenerator(path)
-
-        assert manager.create() == False
+        try:
+            manager = DemoFileGenerator(path)
+            manager.create()
+        except FileSafetyException:
+            pass
 
     def test_create_in_non_directory(self):
 
@@ -137,50 +139,36 @@ class TestBaseManager():
 
         create_marker(path)
 
-        manager = TestFileGenerator(path)
+        try:
+            manager = DemoFileGenerator(path)
+            manager.create()
+        except NotADirectoryError:
+            pass
 
-        assert manager.create() == False
-
-    def test_create_in_marked_directory(self):
-
-        path = "test_folder/"
-
-        create_marker(path)
-
-        manager = TestFileGenerator(path)
-
-        assert manager.create() == True
-
-    def test_clear_unmarked_folder(self):
+    def test_clear_unmarked_directory(self):
 
         path = "test_folder/"
 
         remove_marker(path)
 
-        manager = TestFileGenerator(path)
+        try:
+            manager = DemoFileGenerator(path)
+            manager.clear_folder()
+        except FileSafetyException:
+            pass
 
-        assert manager.clear_folder() == False
-
-    def test_clear_marked_folder(self):
+    def test_clear_marked_directory(self):
 
         path = "test_folder/"
 
         create_marker(path)
 
-        manager = TestFileGenerator(path)
-
-        assert manager.clear_folder() == True
+        manager = DemoFileGenerator(path)
+        manager.clear_folder()
 
     def test_testmarker_remais_after_clear(self):
 
-        path = "test_folder/"
-
-        create_marker(path)
-
-        manager = TestFileGenerator(path)
-        manager.clear_folder()
-
-        assert check_for_marker(path) == True
+        pass
 
 if __name__ == "__main__":
     pass

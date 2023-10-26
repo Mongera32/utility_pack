@@ -21,11 +21,14 @@ logger.setLevel(severity_level)
 
 class VariableInspector(PrettyTable):
 
-    def __init__(self, field_names=["Variable name","Variable value"], **kwargs) -> None:
-
-        if severity_level != logging.DEBUG: return
+    def __init__(self, field_names=["Variable name","Variable value"], logger_severity = "debug"  , **kwargs) -> None:
 
         super().__init__(field_names, **kwargs)
+
+        if logger_severity.lower() not in ['debug', 'info', 'warning', 'error', 'critical']:
+            raise ValueError(f"{logger_severity} is nor a valid {Fore.GREEN + 'logging' + Fore.RESET} severity level.")
+
+        self.logger_severity = logger_severity.lower()
 
     def var_report(self, *args):
 
@@ -37,7 +40,19 @@ class VariableInspector(PrettyTable):
     def report(self):
         function_name = inspect.stack()[1][3]
         variable_table = self.get_string()
-        print(f"\nReporting variables from {Fore.YELLOW + function_name + Fore.RESET}\n\n{variable_table}")
+        report_string = f"\nReporting variables from {Fore.YELLOW + function_name + Fore.RESET}\n\n{variable_table}"
+
+
+        if self.logger_severity == "debug":
+            logger.debug(report_string)
+        if self.logger_severity == "info":
+            logger.info(report_string)
+        if self.logger_severity == "warning":
+            logger.warning(report_string)
+        if self.logger_severity == "error":
+            logger.error(report_string)
+        if self.logger_severity == "critical":
+            logger.critical(report_string)
 
 def append_syspath(rootdir:str) -> None:
     """
@@ -72,10 +87,6 @@ def append_syspath(rootdir:str) -> None:
 
 class FileSafetyException(Exception):
     """Raised when a risk of data loss or data exposure is detected."""
-    pass
-
-class NotDirectoryException(Exception):
-    """Raised when a path should ponint to a directory but points to a file instead."""
     pass
 
 ############################################################################
@@ -392,7 +403,7 @@ class DataFormatting():
 
         return data_list
 
-class TestFileGenerator():
+class DemoFileGenerator():
     """
     Manages creation and deletion of files for test purposes. `path` argument must be a directory path and must contain
     a file named `testmarker`, otherwise the `safety_lock()` method will engage and stop any class method that gets
@@ -428,10 +439,9 @@ class TestFileGenerator():
 
         logger.info("setup finished.")
 
-    def create(self, show = False) -> bool:
+    def create(self, show = False) -> None:
         """Creates a test file in the directory specified by ``self.path``. returns True if operation was successful and False otherwise."""
-        try: self.safety_lock()
-        except FileSafetyException: return False
+        self.safety_lock()
 
         try:
             self.creation_block()
@@ -440,8 +450,7 @@ class TestFileGenerator():
 
             # setting path to cwd
             self.set_path("")
-            try: self.safety_lock()
-            except FileSafetyException: return False
+            self.safety_lock()
 
             # creating/overriding file
             self.creation_block()
@@ -459,14 +468,11 @@ class TestFileGenerator():
         if show:
             self.show_test_file()
 
-        return True
-
     def safety_lock(self):
         """Raises FileSafetyException if path attribute has not been defined."""
         logger.debug("Applying safety check")
         if not hasattr(self,"path"):
-            logger.error(f"self does not contain the {Fore.BLUE}path{Fore.RED} attribute. Safety lock engaged. Returning {Fore.GREEN}FileSafetyException{Fore.RESET}.")
-            raise FileSafetyException
+            raise FileSafetyException(f"{Fore.BLUE}self{Fore.RED} does not contain the {Fore.BLUE}path{Fore.RED} attribute. Safety lock engaged. Returning {Fore.GREEN}FileSafetyException{Fore.RESET}.")
         logger.debug("Safety check passed")
 
     def file_opener(self, mode:str):
@@ -548,6 +554,7 @@ class TestFileGenerator():
             self.newpath_check(newpath)
         except FileNotFoundError:
             logger.warning(f"path {Fore.YELLOW + newpath + Fore.RESET} not found. Defaulting to current working directory.")
+            newpath = os.getcwd()
             self.newpath_check(newpath)
 
     def newpath_check(self, newpath) -> None:
@@ -556,29 +563,16 @@ class TestFileGenerator():
 
         dir_list = os.listdir(newpath)
 
-        try:
-            if newpath[-1] != "/":
-                raise NotDirectoryException
-            if "testmarker" not in dir_list:
-                raise FileSafetyException
-            logger.info(f"{Fore.GREEN + newpath + Fore.RESET} verified as test area. Proceeding with setup.")
-            self.path = newpath
-        except FileSafetyException:
-            logger.error(f"""
-
-{Fore.GREEN + newpath + Fore.RESET} directory is {Fore.RED}NOT{Fore.RESET} marked as a testing area. Cancelling operation for safety reasons.
-
+        if newpath[-1] != "/":
+            raise NotADirectoryError(f"path {Fore.GREEN + newpath + Fore.RESET} points to a file, but should point to a directory instead.")
+        if "testmarker" not in dir_list:
+            raise FileSafetyException(f"""{Fore.GREEN + newpath + Fore.RESET} directory is {Fore.RED}NOT{Fore.RESET} marked as a testing area. Cancelling operation for safety reasons.
 To mark this directory as a testing area, create a file named {Fore.BLUE}testmarker{Fore.RESET} in it.
-
 """)
-        except NotDirectoryException:
-            logger.error(f"""
+        logger.info(f"{Fore.GREEN + newpath + Fore.RESET} verified as test area. Proceeding with setup.")
+        self.path = newpath
 
-path {Fore.GREEN + newpath + Fore.RESET} points to a file, but should point to a directory instead.
-
-""")
-
-    def clear_folder(self) -> bool:
+    def clear_folder(self) -> None:
         try: self.safety_lock()
         except FileSafetyException: return False
         """Deletes all files in the specified directory."""
@@ -601,9 +595,7 @@ path {Fore.GREEN + newpath + Fore.RESET} points to a file, but should point to a
 
         logger.info(f"{Fore.RED}Files wiped")
 
-        return True
-
-class CsvTestFileGenerator(TestFileGenerator):
+class CsvTestFileGenerator(DemoFileGenerator):
 
     def __init__(self,
                  path:str = "",
@@ -612,7 +604,7 @@ class CsvTestFileGenerator(TestFileGenerator):
                  column_number = 3,
                  line_number = 1
     ) -> None:
-        TestFileGenerator.__init__(   self,
+        DemoFileGenerator.__init__(   self,
                                     path = path,
                                     file_name = file_name,
                                     ext = "csv",
