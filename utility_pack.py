@@ -1,15 +1,18 @@
 from pandas import DataFrame
 from typing import Union
-import logging, os, shutil, inspect, sys
+import logging, os, shutil, sys
 from colorama import Fore
 import random
-from prettytable import PrettyTable
+#from prettytable import PrettyTable
+import pandas as pd
+from datetime import datetime
+import numpy as np
 
 ############################################################################
 # logging config  #
 ############################################################################
 
-severity_level = logging.INFO
+severity_level = logging.DEBUG
 logger = logging.getLogger(__name__)
 FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -19,31 +22,29 @@ logger.setLevel(severity_level)
 # Debug support #
 ############################################################################
 
-class VariableInspector(PrettyTable):
+#class VariableInspector(PrettyTable):
+#
+#    def __init__(self, *args:list[str,str], **kwargs) -> None:
+#        """
+#        Returns a VariableInspector instance. Insert variables as *args.
+#        """
+#        # Calling parent __init__
+#        field_names = ["Name","Value"]
+#        super().__init__(field_names, **kwargs)
+#
+#        # Adding variables
+#        for row in args:
+#            row[1] = str(row[1])
+#            logger.debug(f"row being added: {row}")
+#            self.add_row(row)
 
-    def __init__(self, *args, field_names=["Name","Value"], **kwargs) -> None:
-        """
-        Returns a VariableInspector instance. Use the `.fill_report()` method to insert variables that should be
-        featured in the report.
-        """
+#    def caller(self):
+#        curframe = inspect.currentframe()
+#        calframe = inspect.getouterframes(curframe, 3)
+#        print(F"\n{Fore.YELLOW} CALLER NAME: {calframe[1][3] + Fore.RESET}")
 
-        super().__init__(field_names, **kwargs)
-
-        for row in args:
-            self.add_row(row)
-
-    def report(self):
-        """Prints a report about current stack including las function called and local variables in a table."""
-
-        if self._rows == []: raise ValueError(f"No variables have been passed to {Fore.GREEN + 'VariableInspector' + Fore.RESET}. Use {Fore.YELLOW + 'fill_report()' + Fore.RESET} method before calling {Fore.YELLOW + 'report()' + Fore.RESET}.")
-
-        function_name = inspect.stack()[1][3]
-        variable_table = self.get_string()
-        report_string = f"\nReporting variables from {Fore.YELLOW + function_name + Fore.RESET}\n\n{variable_table}"
-
-        logger.setLevel(logging.DEBUG)
-        logger.debug(report_string)
-        logger.setLevel(severity_level)
+#    def table(self):
+#        print(f"\n{Fore.YELLOW} VARIABLE REPORT TABLE {Fore.GREEN} \n\n {self.get_string() + Fore.RESET}")
 
 def append_syspath(rootdir:str) -> None:
     """
@@ -59,14 +60,6 @@ def append_syspath(rootdir:str) -> None:
     rootdir_path_list = [x for x in current_path_list if current_path_list.index(x) < rootdir_index]
     # joining list elements in a new string
     rootdir_parent_path = "/".join(rootdir_path_list)
-
-    inspector = VariableInspector()
-    inspector.fill_report(["Current directory",current_path],
-                         ["Path into list",current_path_list],
-                         ["Index of rootdir in list",rootdir_index],
-                         ["List without rootdir and subdirectories",rootdir_path_list],
-                         ["Path string created from updated list",rootdir_parent_path]
-)
 
     sys.path.append(rootdir_parent_path)
     logger.info(f"{Fore.YELLOW + rootdir_parent_path + Fore.RESET} has been added to {Fore.GREEN + 'sys' + Fore.RESET}.{Fore.CYAN + 'path' + Fore.RESET} list.")
@@ -383,14 +376,35 @@ class DataFormatting():
         Returns:
         list: Every tuple represents a row in the input DataFrame.
         """
+        logger.debug(f"Creating data list from {self.data}")
+
         if type(self.data) != DataFrame:
-            logger.error("Data object is not a DataFrame. Cannot proceed")
-            return None
+            raise TypeError(f"self.data is {type(self.data)}. Must be a DataFrame.")
+
+        df = self.data
+
+        for col in df.columns:
+
+            if col in ("insertOrder", "insertorder"):
+                df.drop(columns = col, inplace = True)
+
+            elif col == "dtCenario":
+                current_datetime = datetime.now().isoformat()
+                current_datetime = current_datetime.replace("T", " ")
+                current_datetime = current_datetime.split('.')[0]
+                df[col] = current_datetime
+
+            elif df[col].dtype == "object":
+                continue
+
+            else:
+                df[col] = df[col].map(df_to_sql)
 
         data_list = []
-        for index, row in self.data.iterrows():
-            new_row = tuple([row_processing(x) for x in row]) # creating a new tuple with all values converted to strings
-            data_list.append(new_row) # appending new tuple into list
+        for row in df.itertuples(index = False, name = None):
+            data_list.append(row)
+
+        logger.debug(f"Created data list: {data_list}")
 
         return data_list
 
@@ -514,11 +528,18 @@ class DemoFileGenerator():
         and only if this check is successful."""
 
         # making list of files in newpath
+        if newpath.endswith("/"):
+            newpath = newpath[:-1]
+
         if newpath == "":
             logger.warning(f"{Fore.BLUE}newpath{Fore.RESET} string empty. defaulting to current working directory.")
             newpath = os.getcwd()
 
-        dir_list = os.listdir(newpath)
+        if os.path.isdir(newpath):
+            dir_list = os.listdir(newpath)
+            logger.debug(f"files in directory: {dir_list}")
+        else:
+            raise NotADirectoryError(f"path {Fore.GREEN + newpath + Fore.RESET} points to a file, but should point to a directory instead.")
 
         logger.debug(f"Files in {newpath}: {dir_list}")
         try:
@@ -528,16 +549,18 @@ class DemoFileGenerator():
             newpath = os.getcwd()
             self.newpath_check(newpath)
 
-    def newpath_check(self, newpath) -> None:
+    def newpath_check(self, newpath:str) -> None:
         """Verifies if newpath is valid directory that is marked as a test area. If the Check passes, saves
         it as self.newpath and returns warningmessages otherwise."""
 
+        if not newpath.endswith("/"):
+            newpath += "/"
+
         logger.debug(f"Setting test file path to {Fore.GREEN + newpath + Fore.RESET}")
 
-        dir_list = os.listdir(newpath)
+        proj_root = os.getcwd()
 
-        if newpath[-1] != "/":
-            raise NotADirectoryError(f"path {Fore.GREEN + newpath + Fore.RESET} points to a file, but should point to a directory instead.")
+        dir_list = os.listdir(proj_root + "/" + newpath)
         if "testmarker" not in dir_list:
             raise FileSafetyException(f"""
 
@@ -545,7 +568,7 @@ class DemoFileGenerator():
 
         To mark this directory as a testing area, create a file named {Fore.BLUE}testmarker{Fore.RESET} in it.
 """)
-        logger.info(f"{Fore.GREEN + newpath + Fore.RESET} verified as test area. Proceeding with setup.")
+        logger.info(f"{Fore.YELLOW + newpath + Fore.RESET} verified as test area. Proceeding with setup.")
 
         self.path = newpath
 
@@ -589,17 +612,23 @@ class CsvDemoFileGenerator(DemoFileGenerator):
                                     line_number = line_number
 )
         self.column_number = column_number
-        self.csv_header()
-        self.csv_line_list()
 
-    def create_csv(self, show:bool = False):
-        """Create test csv file according to attributes."""
+    def create_csv(self, path:str):
+        """Create test csv file according to attributes. Saves it at `path`"""
 
-        self.csv_line_list()
+        df_dict = {}
+        while len(df_dict) < self.column_number:
 
-        self.csv_header()
+            line = []
+            while len(line) < self.line_number:
+                line.append(random.randint(1,10))
 
-        self.create(show = show)
+            col_name = f"col{len(df_dict)}"
+            df_dict[col_name] = line
+
+        df = pd.DataFrame(df_dict)
+
+        df.to_csv(path,index=False)
 
     def csv_line_list(self):
         """Creates files header according to desired number of columns."""
@@ -641,33 +670,41 @@ class CsvDemoFileGenerator(DemoFileGenerator):
 # Functions  #
 ############################################################################
 
-def adjust_to_directory(path:str):
-    if not path.endswith("/"):
-        path += "/"
-    return path
+def contains_column(df:DataFrame, col:str):
+    """Checks if DataFrame `df` contains any of the labels in list `cols`."""
+
+    df_col_list = list(df.columns)
+
+    if col in df_col_list:
+        return True
+
+    return False
 
 def create_marker(path:str):
 
-    path = adjust_to_directory(path)
+    confirmation = input(f"\n{Fore.RED + ' !! WARNING !!' + Fore.RESET}\nYou are about to mark a directory as a testing area, which will put all files in it at risk of being deleted or modified.\nPlease 'AGREE' to confirm that you wish to proceed:\n\n ")
+
+    if confirmation != "AGREE":
+        raise FileSafetyException("Confirmation invalid. Cancelling operation.")
 
     try:
-        with open(f"{path}testmarker", "x") as file:
+        with open(f"{path}/testmarker", "x") as file:
             file.write("")
+
     except FileExistsError:
-        logger.warning(f"testmarker file already exists at {Fore.BLUE + path + Fore.RESET}.")
+        logger.warning(f"testmarker file already exists at {Fore.YELLOW + path + Fore.RESET}.")
 
 def remove_marker(path:str):
 
-    path = adjust_to_directory(path)
+    if path.endswith("/"):
+        path = path[:-1]
 
     try:
-        os.remove(f"{path}testmarker")
+        os.remove(f"{path}/testmarker")
     except FileNotFoundError:
         pass
 
 def check_for_marker(path:str) -> bool:
-
-    path = adjust_to_directory(path)
 
     try:
         with open(f"{path}testmarker", "r") as file:
@@ -718,21 +755,29 @@ def float_check(x) -> bool:
 
     return False
 
-def row_processing(x:Union[str,int,float]) -> str :
+def df_to_sql(x:Union[str,int,float]) -> str :
     """
-    Turns x into a string that can be read as data in a SQL query.
+    Turns x into a string that can be inserted in a SQL query.
     To be used in a list comprehension in the create_data_list() function.
 
     x: object to be modified and/or converted into a string type.
     """
 
-    if x == '[NULL]':
-        return None
-    if type(x) == bool:
-        if x == True: return '1'
-        elif x == False: return '0'
-    if float_check(x):
-        return int(x)
+    try:
+
+#        if x in ('[NULL]', 'None'):
+#            return None
+        if type(x) == bool:
+            if x == True: return '1'
+            elif x == False: return '0'
+        if float_check(x):
+            return int(x)
+        if type(x) == np.nan:
+            return None
+
+    except ValueError:
+        return str(x)
+
     return str(x)
 
 def correction_labels_to_list(reference):
@@ -758,5 +803,42 @@ def correction_labels_to_list(reference):
 
     return reference
 
+def dplcheck(collection) -> bool:
+    """Checks of `collection` object contains any duplicated value. Returns ``True`` if so, and `False` otherwise."""
+
+    _set = set(collection)
+
+    if len(_set) == len(collection):
+        return True
+
+    return False
+
+def dict_dplcheck(_dict:dict) -> bool:
+    """Checks if `_dict` contains any duplicated values. Returns `True` if any duplicated value is found and
+    `False otherwise.`"""
+
+    keys = _dict.keys()
+
+    # retornar valor de cada chave e criar uma lista
+    values = [_dict[key] for key in keys]
+
+    result = dplcheck(values)
+
+#    inspector = VariableInspector(["keys",keys],
+#                                  ["values",values],
+#                                  ["result",result]
+#)
+#    logger.debug(inspector.caller())
+#    logger.debug(inspector.table())
+
+    return result
+
 if __name__ == "__main__":
-    pass
+    df1 = pd.DataFrame({1:[1,2,3],
+                        2:[1,None,3]
+})
+    formatter = DataFormatting(df1)
+
+    result = formatter.create_data_list()
+
+    print(df1)
