@@ -3,6 +3,7 @@ from typing import Union
 import logging, os, shutil
 from colorama import Fore
 import random
+from prettytable import PrettyTable
 
 severity_level = logging.DEBUG
 logger = logging.getLogger(__name__)
@@ -20,10 +21,22 @@ class FileSafetyException(Exception):
 class NotDirectoryException(Exception):
     """Raised when a path should ponint to a directory but points to a file instead."""
     pass
-
 # ----------------------------------------
 # Classes
 
+class ResultPrinter(PrettyTable):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__()
+
+        self.field_names = ["var name", "value"]
+
+        for var in args:
+            row = [var,eval(var)]
+            self.add_row(row)
+
+        print(self)
+        
 class CaseCorrection():
 
     def __init__(self,
